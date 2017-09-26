@@ -2,7 +2,7 @@
 title: "Logistic Regression model for predicting results of presidential elections"
 output: html_notebook
 ---
-
+I have published this on Rpubs which is more reader friendly- [Rpubs](http://rpubs.com/Nutan_Sahoo/predicting_the_unpredictable)
 We see there are only 145 obsv. even though there are 50 states and 3 election years. so let's look at the no. of obsv per year using `table` function. In 2012 only 45 obsv are there. Actually, pollsters were so sure about these five states that they did not conduct any polls there.
 ```{r}
 #description of variables
