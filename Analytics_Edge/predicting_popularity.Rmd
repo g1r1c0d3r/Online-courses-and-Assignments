@@ -1,0 +1,141 @@
+---
+title: "Predicting Popularity of a Song"
+author: "Nutan Sahoo"
+date: "27 September 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+##Exploratory Analysis
+
+```{r}
+#Importing data set
+songs<- read.csv("songs.csv", header = TRUE)
+View(songs)
+
+#check structure of the data set
+str(songs)
+
+#look at the dependent varible i.e. Top10
+table(songs$Top10)
+```
+There are 6455 unpopular songs and 1119 popular songs. 
+
+```{r}
+#comparison between the energy of popular and unpop songs
+boxplot(energy~ Top10, data= songs)
+en_pop<- songs$energy[songs$Top10==1]
+en_unpop<- songs$energy[songs$Top10==0]
+t.test(en_pop, en_unpop)
+ 
+ #pitch of pop and unpop songs
+mean(songs$pitch[songs$Top10==0])
+mean(songs$pitch[songs$Top10==1])
+t.test(songs$pitch[songs$Top10==0], songs$pitch[songs$Top10==1]) #significant
+
+ #comparing the pop and umpop songs' pitch with a barplot
+layout(matrix(c(1,1,2,2),2,2,byrow=T))
+barplot(songs$pitch[songs$Top10==1], ylim = c(0,0.1), ylab = "Pitch of the song",
+     xlab="Popular Songs")
+barplot(songs$pitch[songs$Top10==0], ylim = c(0,0.1), ylab = "Pitch of the song",
+     xlab="Unpopular Songs")
+ 
+
+```
+
+
+```{r}
+#comparing loudness of pop and unpop songs
+layout(matrix(c(1,1,2,2),2,2,byrow=T))
+barplot(songs$loudness[songs$Top10==1], ylab = "loudness of the song",
+         xlab="Popular Songs")
+barplot(songs$loudness[songs$Top10==0], ylab = "loudness of the song",
+    xlab="Unpopular Songs", ylim = c(-25, 0))#since limit of the popular songs is -25 to 0 
+
+#loudness of songs overtime
+x<- 1990:2010
+x<- as.character(x)
+m<- aggregate(loudness~year, data=songs, mean)
+m<- as.data.frame(m)
+barplot(m[,2], names.arg = x, col="cyan", main="Loudness of songs in decibels")
+
+#loudness increases overtime
+ 
+```
+
+```{r}
+#how are all variables correlated to one another?
+songs1<- songs[-(1:7)]
+names(songs1)
+
+#we should remove timbre_0_min to timbre_11_max as it doesn't seem important
+songs1<- songs1[-(8:31)]
+head(songs1,3)
+cor(songs1[, 1:8])
+```
+
+####splitting into a test and training set and fitting logistic reg models
+```{r}
+#install.packages("caTools")
+library(caTools)
+set.seed(888)
+split<- sample.split(songs$Top10, SplitRatio = 0.75) #makes sure that the outcome variable is well balanced in both the sets
+
+train<- subset(songs, split== TRUE)
+head(train)
+dim(train)
+test<- subset(songs, split==FALSE)
+
+#fitting model
+mod1<- glm(Top10 ~pitch, data= train, family = "binomial" )
+summary(mod1)
+pred1<- predict( mod1, type="response")
+table(train$Top10, pred1 >=0.6)
+
+mod2<- glm(Top10~ tempo+key+energy+pitch, data=train, family = "binomial")
+summary(mod2)
+pred2<- predict( mod1, type="response")
+table(train$Top10, pred2 >=0.3)
+table(train$Top10, pred2 >=0.4)
+table(train$Top10, pred2 >=0.5)
+table(train$Top10, pred2 >=0.6)
+
+```
+For a cutoff prob of 0.3 or greater the model gives the same output as the baseline model. It seems that logistic regression is not a good method of predicting popularity. The variables are also not correlated with top10 variable. It would be safe to conclude that logistics regression is not an apt method for this. We should try some other models like decision trees or maybe classifiers or maybe Text analysis. It would be very interesting to see what machine learning alogorithm would give us the perfect model.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
