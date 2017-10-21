@@ -1,0 +1,186 @@
+---
+title: "Building a CART model to predict supreme court decisions"
+author: "Nutan Sahoo"
+date: "14 October 2017"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+```
+Start by importing the data file. Look at the data using str
+```{r}
+stevens<- read.csv("stevens.csv")
+str(stevens)
+```
+We have 9 different var. The last one is the dependent variable. 0 means justice stevens decided to overturn the lower court's decision. 1 means he affirmed it. Then we need split the dataset into training and testing set using `CaTools` package
+```{r}
+set.seed(3000)
+#install.packages("CaTools")
+library(caTools)
+spl<- sample.split(stevens$Reverse, SplitRatio = 0.7)
+Train1 <- subset(stevens, spl== TRUE )
+Test1<- subset(stevens, spl==FALSE)
+
+```
+We would have to install and load a few packages for building a CART model. 
+rpart works the same as lm, we give our dependent variable and then the independent ones.
+`minbucket` argument limits the tree so that it doesn't overfit to our training set. We selected a value of 25 but we can pick any value smaller or greater. `prp` function enables us to plot our tree.
+```{r}
+#install.packages("rpart")
+library(rpart)
+#install.packages("rpart.plot")
+library(rpart.plot)
+stevens_tree<- rpart(Reverse~ Circuit+Issue+Petitioner+Respondent+LowerCourt+ 
+                       Unconst, data= Train1, method = "class", minbucket= 25)
+#class- because we want rpart to build a classification tree and not a regression tree
+prp(stevens_tree)
+
+```
+
+
+Smaller the minbucket greater the number of splits in the model. As the number of observations in a particular cell decreases.  
+Now we will see how well our model performs. We will check the accuracy of the model by building a confusion matrix.
+
+
+###Predictions 
+We will now make predictions from our CART model using `predict` function. Our third argument here is `type` which we set equal to class. We need to give this argument when making predictions for our CART model if we want majority class predictions.
+
+```{r}
+PredictCART<- predict(stevens_tree, newdata = Test1, type="class") 
+#we will give class in type when making predictions(majority class prediction) on a cart model
+table(Test1$Reverse, PredictCART)
+#to get the accuracy we will add up the total no. of obsv we got correct divided by the total obsv.
+accuracy<- (41+71)/(41+36+22+71)
+```
+The baseline model always predicts Reverse and has an accuracy of 0.547. So our CART model sig. beats the baseline model.
+We will make the ROC curve using `ROCR` package.
+
+```{r, warning=FALSE, message=FALSE}
+PredictROC<- predict(stevens_tree, newdata = Test1)
+head(PredictROC)
+```
+These numbers can be thought of as probabilities. The number written below the 0s are prob of getting the outcome 0 for that observation. These numbers actually give the percentage of the training set data in their respective subset with outcome 0 and the other coulumn gives percentage of the training set data in their respective subset with outcome 1. We will use the second column as the probabilities to generate an ROC curve. 
+```{r}
+library(ROCR)
+pred<- prediction(PredictROC[ ,2], Test1$Reverse)
+perf<- performance(pred, "tpr","fpr") #fpr and tpr are performance measures. There are other performance measures like accuracy(acc), error rate (err).
+plot(perf)
+as.numeric(performance(pred, "auc")@y.values)
+
+```
+
+##Random Forest Model
+It builds many different trees on bootstrapped data. we need to select the value of a few parameters like minimum number of obsv. in a subset. In R this is controlled by the nodesize parameter. Smaller nodesize may take longer in R. Number of trees is controlled by ntree parameter. Should not be too small as bagging procedure may miss observations. More trees take more time. It is  more computationally intense. 
+```{r}
+#install.packages("randomForest")
+library(randomForest)
+stevens_forest<- randomForest(Reverse~ Circuit+Issue+Petitioner+Respondent+LowerCourt+Unconst, data=Train1, nodesize = 25, ntree = 200)
+Train1$Reverse<- as.factor(Train1$Reverse)
+Test1$Reverse<- as.factor(Test1$Reverse)
+```
+When we are doing a classification problem we need to make sure that the outcome variable is factor. So we convert it to a factor.
+
+###Calculating the accuracy of the random forest model
+```{r, results='hide'}
+PredictForest<- predict(stevens_forest, newdata= Test1)
+table(Test1$Reverse, PredictForest)
+(42+76)/(42+76+35+17)
+
+```
+So the accuracy of this model is 69%. This is an improvement over the accuracy of the CART model. 
+
+
+##Cross-Validation
+This method works by going through the following steps. First, we split the training set into k equally sized subsets, or folds. Then we select k-1 folds to estimate the model and compute predictions on the remaining one (validation set). Then we repeat the process by taking some other fold as the validation set this time. 
+```{r}
+#install.packages("caret")
+library(caret)
+#install.packages(e1071)
+library(e1071)
+#first we need to define how many folds we want 
+numfolds<- trainControl(method="cv", number=10)
+#then we need to pick possible values for our cp
+cpgrid<- expand.grid(.cp=seq(0.01,0.5, 0.01))
+train(Reverse ~ Circuit+Issue+Petitioner+Respondent+LowerCourt+Unconst, 
+      data=Train1 , method = "rpart", trControl=numfolds, tuneGrid=cpgrid)
+
+
+```
+We can see that the cp corresponding to the highest accuracy is the 0.19. You can also use 0.18 as there isn't much difference in the accuracy. We will use this value of cp to create our CART model.
+```{r}
+stevenscv<- rpart(Reverse~Circuit+ Issue+Petitioner+Respondent+LowerCourt+Unconst, data= Train1, method="class", cp=0.18)
+predictcv<- predict(stevenscv, newdata= Test1, type="class")
+table(Test1$Reverse, predictcv)
+(59+64)/(59+64+18+29)
+```
+The accuracy of this model is 72%, CART model we fitted above was 65%. There was a significant increase in accuracy in by selecting the right parameter value using this method.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
